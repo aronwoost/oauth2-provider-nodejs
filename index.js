@@ -75,7 +75,8 @@ OAuth2Provider.prototype._post_oauth = function(req, res, next) {
 	}
 
 	if(!req.body.allow) {
-		return self.emit('accessDenied', req, res);
+		res.writeHead(303, {Location: url + "#error=access_denied"});
+		return res.end();
 	}
 
 	if('token' === responseType) {
@@ -83,7 +84,8 @@ OAuth2Provider.prototype._post_oauth = function(req, res, next) {
 		try {
 			userId = self._decrypt(xUserId);
 		} catch(e) {
-			return self.emit('accessDenied', req, res);
+			res.writeHead(303, {Location: url + "#error=access_denied"});
+			return res.end();
 		}
 
 		self.emit('createAccessToken', userId, clientId, function(tokenDataStr) {

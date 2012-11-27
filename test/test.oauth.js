@@ -161,18 +161,17 @@ describe('oauth2 flow', function(){
 	describe('POST /authorize (x_user_id wrong)', function(){
 
 		it('run', function(done){
-			var expectedResponse = {error:"access denied"};
-
 			var option = {
 				method:"POST",
 				uri:authUrl + "extra_trash_that_breaks_x_user_id"
 			};
 
 			makeRequest(option, function(err, response, body){
-				if(err || response.statusCode !== 401){
+				if(err || response.statusCode !== 303){
 					return done(err || new Error(response.statusCode));
 				}
-				body.should.eql(expectedResponse);
+				var token = response.headers.Location.split("#error=")[1];
+				token.should.equal("access_denied");
 				done();
 			});
 		});
@@ -182,18 +181,17 @@ describe('oauth2 flow', function(){
 	describe('POST /authorize (not allowed)', function(){
 
 		it('run', function(done){
-			var expectedResponse = {error:"access denied"};
-			
 			var option = {
 				method:"POST",
 				uri:authUrl
 			};
 
 			makeRequest(option, function(err, response, body){
-				if(err || response.statusCode !== 401){
+				if(err || response.statusCode !== 303){
 					return done(err || new Error(response.statusCode));
 				}
-				body.should.eql(expectedResponse);
+				var token = response.headers.Location.split("#error=")[1];
+				token.should.equal("access_denied");
 				done();
 			});
 		});
