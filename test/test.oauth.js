@@ -165,10 +165,28 @@ describe('oauth2 flow', function(){
 
 			var option = {
 				method:"POST",
-				uri:authUrl + "extra_trash_that_breaks_x_user_id",
-				body:{
-					allow:true
+				uri:authUrl + "extra_trash_that_breaks_x_user_id"
+			};
+
+			makeRequest(option, function(err, response, body){
+				if(err || response.statusCode !== 401){
+					return done(err || new Error(response.statusCode));
 				}
+				body.should.eql(expectedResponse);
+				done();
+			});
+		});
+
+	});
+
+	describe('POST /authorize (not allowed)', function(){
+
+		it('run', function(done){
+			var expectedResponse = {error:"access denied"};
+			
+			var option = {
+				method:"POST",
+				uri:authUrl
 			};
 
 			makeRequest(option, function(err, response, body){
@@ -188,7 +206,10 @@ describe('oauth2 flow', function(){
 
 			var option = {
 				method:"POST",
-				uri:authUrl
+				uri:authUrl,
+				body:{
+					allow:true
+				}
 			};
 
 			makeRequest(option, function(err, response, body){

@@ -74,6 +74,10 @@ OAuth2Provider.prototype._post_oauth = function(req, res, next) {
 		return self.emit('invalidResponseType', req, res);
 	}
 
+	if(!req.body.allow) {
+		return self.emit('accessDenied', req, res);
+	}
+
 	if('token' === responseType) {
 		var userId;
 		try {
