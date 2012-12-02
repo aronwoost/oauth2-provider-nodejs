@@ -158,7 +158,7 @@ describe('oauth2 flow', function(){
 
 	});
 
-	describe('POST /authorize (x_user_id wrong)', function(){
+	describe('POST /authorize (token, x_user_id wrong)', function(){
 
 		it('run', function(done){
 			var option = {
@@ -178,7 +178,27 @@ describe('oauth2 flow', function(){
 
 	});
 
-	describe('POST /authorize (not allowed)', function(){
+	describe('POST /authorize (code, x_user_id wrong)', function(){
+
+		it('run', function(done){
+			var option = {
+				method:"POST",
+				uri:authUrl + "extra_trash_that_breaks_x_user_id&response_type=code"
+			};
+
+			makeRequest(option, function(err, response, body){
+				if(err || response.statusCode !== 303){
+					return done(err || new Error(response.statusCode));
+				}
+				var token = response.headers.Location.split("?error=")[1];
+				token.should.equal("access_denied");
+				done();
+			});
+		});
+
+	});
+
+	describe('POST /authorize (token, not allowed)', function(){
 
 		it('run', function(done){
 			var option = {
@@ -191,6 +211,26 @@ describe('oauth2 flow', function(){
 					return done(err || new Error(response.statusCode));
 				}
 				var token = response.headers.Location.split("#error=")[1];
+				token.should.equal("access_denied");
+				done();
+			});
+		});
+
+	});
+
+	describe('POST /authorize (code, not allowed)', function(){
+
+		it('run', function(done){
+			var option = {
+				method:"POST",
+				uri:authUrl + "&response_type=code"
+			};
+
+			makeRequest(option, function(err, response, body){
+				if(err || response.statusCode !== 303){
+					return done(err || new Error(response.statusCode));
+				}
+				var token = response.headers.Location.split("?error=")[1];
 				token.should.equal("access_denied");
 				done();
 			});

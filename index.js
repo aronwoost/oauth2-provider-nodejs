@@ -75,8 +75,7 @@ OAuth2Provider.prototype._post_oauth = function(req, res, next) {
 	}
 
 	if(!req.body.allow) {
-		res.writeHead(303, {Location: url + "#error=access_denied"});
-		return res.end();
+		return self._redirectError(res, responseType, url, "access_denied");
 	}
 
 	if('token' === responseType) {
@@ -84,8 +83,7 @@ OAuth2Provider.prototype._post_oauth = function(req, res, next) {
 		try {
 			userId = self._decrypt(xUserId);
 		} catch(e) {
-			res.writeHead(303, {Location: url + "#error=access_denied"});
-			return res.end();
+			return self._redirectError(res, responseType, url, "access_denied");
 		}
 
 		self.emit('createAccessToken', userId, clientId, function(tokenDataStr) {
@@ -108,6 +106,12 @@ OAuth2Provider.prototype._post_oauth = function(req, res, next) {
 			res.end();
 		});
 	}
+};
+
+OAuth2Provider.prototype._redirectError = function(res, responseType, url, error) {
+	var sep = responseType === "token" ? "#" : "?";
+	res.writeHead(303, {Location: url + sep + "error=" + error});
+	return res.end();
 };
 
 OAuth2Provider.prototype._post_access_token = function(req, res, next) {
