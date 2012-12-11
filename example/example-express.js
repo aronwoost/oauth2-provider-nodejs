@@ -4,13 +4,11 @@ var OAuth2Provider = require('../index'),
 
 var oauthProvider = new OAuth2Provider("signing-secret");
 
-// client_id and/or redirect_uri is missing
 oauthProvider.on('authorizeParamMissing', function(req, res, callback) {
 	res.writeHead(400);
 	res.end("missing param");
 });
 
-// log the user in (if not already)
 oauthProvider.on('enforceLogin', function(req, res, authorizeUrl, callback) {
 	if(req.session.user) {
 		callback(req.session.user);
@@ -20,72 +18,36 @@ oauthProvider.on('enforceLogin', function(req, res, authorizeUrl, callback) {
 	}
 });
 
-// let the user explicitly grant access to the app 
-oauthProvider.on('authorizeForm', function(req, res, clientId, authorizeUrl) {
-	res.end('<html>this app wants to access your account... <form method="post" action="' + authorizeUrl + '"><button name="allow">Allow</button></form>');
+oauthProvider.on('shouldSkipAllow', function(userId, clientId, callback){
+	callback();
 });
 
-// response_type parameter is not "token" or "code" 
+oauthProvider.on('validateClientIdAndRedirectUri', function(clientId, redirectUri, req, res, callback) {
+	callback();
+});
+
+oauthProvider.on('authorizeForm', function(req, res, clientId, authorizeUrl) {
+	res.end('<html>this app wants to access your account... <form method="post" action="' + authorizeUrl + '"><button name="allow" value="true">Allow</button></form>');
+});
+
 oauthProvider.on('invalidResponseType', function(req, res, callback) {
 	res.writeHead(400);
 	res.end("invalid response type");
 });
 
-// code or token wrong 
 oauthProvider.on('accessDenied', function(req, res, callback) {
 	res.json(401, {error:"access denied"});
 });
 
-// create the access token
 oauthProvider.on('createAccessToken', function(userId, clientId, callback) {
-	/*
-		Any string is allowed as token. Therefor JSON is possible as well. While implicit tokens
-		are recommended it's still good, the have some kind of basic validation so you don't need
-		to lookup every "obviously" invalid token. Also you could keep blocked client id's in memory.
-
-		If you decide to have token's that expire, you should put this in the token as well.
-
-		Here you should also save the token in the data base.
-
-		var tokenDataString = {
-			clientId:clientId,
-			expire:1353334692885,
-			token:"ABC123" // saved in the db for lookup
-		}
-
-		or
-
-		var tokenDataString = {
-			token:"ABC123" // saved in the db for lookup
-		}
-
-		or even
-
-		var tokenDataString =  "ABC123"; // saved in the db for lookup
-
-		The tokenDataString will be encrypted with the "signing-secret".
-
-	*/
 	callback("test-tooken");
 });
 
 oauthProvider.on('createGrant', function(req, clientId, callback) {
-	/*
-		The grantString will be encrypted with the "signing-secret".
-
-		Pretty much the same applies as for create access token.
-	*/
 	callback("ABC123");
 });
 
-// chech if grant is valid
 oauthProvider.on('lookupGrant', function(clientId, clientSecret, code, res, callback) {
-	/*
-		- check if grant exists
-		- check if grant match to clientId
-		- check if clientSecret match with client
-		- callback with userId if everything is fine
-	*/
 	callback("userId");
 });
 
@@ -129,10 +91,7 @@ app.get('/logout', function(req, res, next) {
 app.get('/protected_resource', function(req, res, next) {
 	if(req.query.access_token) {
 		var accessToken = req.query.access_token;
-		/*
-			Here it's on you to validate the token
-		*/
-		res.json(access_token);
+		res.json(accessToken);
 	} else {
 		res.writeHead(403);
 		res.end('no token found');
