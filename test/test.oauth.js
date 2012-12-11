@@ -13,6 +13,12 @@ describe('oauth2 flow', function(){
 
 	var oauthProvider = new OAuth2Provider("bar");
 
+	var shouldSkipAllowFn = function(userId, clientId, callback) {
+		callback();
+	};
+
+	oauthProvider.on('shouldSkipAllow', shouldSkipAllowFn);
+
 	oauthProvider.on('authorizeParamMissing', function(req, res, callback) {
 		res.json(400, {error:"missing param"});
 	});
@@ -25,8 +31,16 @@ describe('oauth2 flow', function(){
 		res.json({url:authorizeUrl});
 	});
 
-	oauthProvider.on('invalidResponseType', function(req, res, callback) {
+	oauthProvider.on('responseTypeError', function(req, res, callback) {
 		res.json(400, {error:"invalid response type"});
+	});
+
+	oauthProvider.on('parameterError', function(req, res, callback) {
+		res.json(400, {error:"parameter_error"});
+	});
+
+	oauthProvider.on('validateClientIdAndRedirectUri', function(clientId, redirectUri, req, res, callback) {
+		callback();
 	});
 
 	oauthProvider.on('accessDenied', function(req, res, callback) {
@@ -113,7 +127,7 @@ describe('oauth2 flow', function(){
 
 	});
 
-	describe('GET /authorize (ok)', function(){
+	describe('GET /authorize (ok, return allow url)', function(){
 
 		it('run', function(done){
 			var expectedResponse = {url: expectedRedirectUrl};
@@ -128,6 +142,80 @@ describe('oauth2 flow', function(){
 					return done(err || new Error(response.statusCode));
 				}
 				body.should.eql(expectedResponse);
+				done();
+			});
+		});
+
+	});
+
+	describe('GET /authorize (ok, existing token)', function(){
+
+		var shouldSkipAllowFnSpecial = function(userId, clientId, callback){
+			callback(true, JSON.stringify(tokenData));
+		};
+
+		before(function(done){
+			oauthProvider.removeListener("shouldSkipAllow", shouldSkipAllowFn);
+			oauthProvider.on('shouldSkipAllow', shouldSkipAllowFnSpecial);
+			done();
+		});
+
+		after(function(done){
+			oauthProvider.removeListener("shouldSkipAllow", shouldSkipAllowFnSpecial);
+			oauthProvider.on('shouldSkipAllow', shouldSkipAllowFn);
+			done();
+		});
+
+		it('run', function(done){
+			
+			var option = {
+				method:"GET",
+				uri:"authorize?client_id=1&redirect_uri=lala.com"
+			};
+
+			makeRequest(option, function(err, response, body){
+				if(err || response.statusCode !== 303){
+					return done(err || new Error(response.statusCode));
+				}
+				var token = response.headers.Location.split("#access_token=")[1];
+				token.should.equal(expectedToken);
+				done();
+			});
+		});
+
+	});
+
+	describe('GET /authorize (ok, "official" app)', function(){
+
+		var shouldSkipAllowFnSpecial = function(userId, clientId, callback){
+			callback(true);
+		};
+
+		before(function(done){
+			oauthProvider.removeListener("shouldSkipAllow", shouldSkipAllowFn);
+			oauthProvider.on('shouldSkipAllow', shouldSkipAllowFnSpecial);
+			done();
+		});
+
+		after(function(done){
+			oauthProvider.removeListener("shouldSkipAllow", shouldSkipAllowFnSpecial);
+			oauthProvider.on('shouldSkipAllow', shouldSkipAllowFn);
+			done();
+		});
+
+		it('run', function(done){
+
+			var option = {
+				method:"GET",
+				uri:"authorize?client_id=1&redirect_uri=lala.com"
+			};
+
+			makeRequest(option, function(err, response, body){
+				if(err || response.statusCode !== 303){
+					return done(err || new Error(response.statusCode));
+				}
+				var token = response.headers.Location.split("#access_token=")[1];
+				token.should.equal(expectedToken);
 				done();
 			});
 		});
@@ -339,7 +427,7 @@ describe('oauth2 flow', function(){
 
 	});
 
-	describe('POST /validate_token (invalid token)', function(){
+	describe('validate_token() (invalid token)', function(){
 
 		it('run', function(done){
 
@@ -352,7 +440,7 @@ describe('oauth2 flow', function(){
 
 	});
 
-	describe('POST /validate_token (ok)', function(){
+	describe('validate_token() (ok)', function(){
 
 		it('run', function(done){
 			var expectedResponse = [1,"ABC123","AAABBBCCC"];

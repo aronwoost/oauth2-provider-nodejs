@@ -37,16 +37,17 @@ OAuth2Provider.prototype.validateToken = function(token, callback) {
 	try {
 		tokenData = self._decrypt(token);
 	} catch(e) {
-		return callback(new Error("decryting token failed"));
+		return callback(new Error("decrypting token failed"));
 	}
 
 	callback(null, tokenData);
 };
 
 OAuth2Provider.prototype._get_oauth = function(req, res, next) {
-	var self = this;
-	var clientId = req.query.client_id,
-		redirectUri = req.query.redirect_uri;
+	var self = this,
+		clientId = req.query.client_id,
+		redirectUri = req.query.redirect_uri,
+		responseType = req.query.response_type || 'token';
 
 	if(!clientId || !redirectUri) {
 		return self.emit('authorizeParamMissing', req, res, next);
@@ -55,9 +56,22 @@ OAuth2Provider.prototype._get_oauth = function(req, res, next) {
 	var authorizeUrl = req.url;
 
 	self.emit('enforceLogin', req, res, authorizeUrl, function(userId) {
-		authorizeUrl += '&x_user_id=' + self._encrypt(userId);
-		
-		self.emit('authorizeForm', req, res, clientId, authorizeUrl);
+		self.emit('shouldSkipAllow', userId, clientId, function(skip, tokenDataStr) {
+			if(skip) {
+				self._validateThings(req, res, clientId, redirectUri, responseType, function(){
+					if(tokenDataStr) {
+						self._redirectWithToken(tokenDataStr, redirectUri, res);
+					}else{
+						self.emit('createAccessToken', userId, clientId, function(tokenDataStr) {
+							self._redirectWithToken(tokenDataStr, redirectUri, res);
+						});
+					}
+				});
+			}else{
+				authorizeUrl += '&x_user_id=' + self._encrypt(userId);
+				self.emit('authorizeForm', req, res, clientId, authorizeUrl);
+			}
+		});
 	});
 };
 
@@ -70,42 +84,56 @@ OAuth2Provider.prototype._post_oauth = function(req, res, next) {
 		state = req.query.state,
 		xUserId = req.query.x_user_id;
 
-	if(responseType !== "code" && responseType !== "token") {
-		return self.emit('invalidResponseType', req, res);
-	}
+	self._validateThings(req, res, clientId, url, responseType, function(){
 
-	if(!req.body.allow) {
-		return self._redirectError(res, responseType, url, "access_denied");
-	}
-
-	if('token' === responseType) {
-		var userId;
-		try {
-			userId = self._decrypt(xUserId);
-		} catch(e) {
+		if(!req.body.allow) {
 			return self._redirectError(res, responseType, url, "access_denied");
 		}
 
-		self.emit('createAccessToken', userId, clientId, function(tokenDataStr) {
-			var atok = self._encrypt(tokenDataStr);
-			url += "#access_token=" + atok;
-			res.writeHead(303, {Location: url});
-			res.end();
-		});
-	} else {
-		self.emit('createGrant', req, clientId, function(codeStr) {
-			codeStr = self._encrypt(codeStr);
-			url += "?code=" + codeStr;
-
-			// pass back anti-CSRF opaque value
-			if(state) {
-				url += "&state=" + state;
+		if('token' === responseType) {
+			var userId;
+			try {
+				userId = self._decrypt(xUserId);
+			} catch(e) {
+				return self.emit('parameterError', req, res);
 			}
 
-			res.writeHead(303, {Location: url});
-			res.end();
-		});
+			self.emit('createAccessToken', userId, clientId, function(tokenDataStr) {
+				var atok = self._encrypt(tokenDataStr);
+				url += "#access_token=" + atok;
+				res.writeHead(303, {Location: url});
+				res.end();
+			});
+		} else {
+			self.emit('createGrant', req, clientId, function(codeStr) {
+				codeStr = self._encrypt(codeStr);
+				url += "?code=" + codeStr;
+
+				// pass back anti-CSRF opaque value
+				if(state) {
+					url += "&state=" + state;
+				}
+
+				res.writeHead(303, {Location: url});
+				res.end();
+			});
+		}
+	});
+};
+
+OAuth2Provider.prototype._redirectWithToken = function(tokenDataStr, redirectUri, res) {
+	var atok = this._encrypt(tokenDataStr);
+	redirectUri += "#access_token=" + atok;
+	res.writeHead(303, {Location: redirectUri});
+	return res.end();
+};
+
+OAuth2Provider.prototype._validateThings = function(req, res, clientId, redirectUri, responseType, callback) {
+	var self = this;
+	if(responseType !== "code" && responseType !== "token") {
+		return self.emit('responseTypeError', req, res);
 	}
+	self.emit('validateClientIdAndRedirectUri', clientId, redirectUri, req, res, callback);
 };
 
 OAuth2Provider.prototype._redirectError = function(res, responseType, url, error) {
